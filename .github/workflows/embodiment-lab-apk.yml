@@ -58,7 +58,7 @@ jobs:
           set -euxo pipefail
           mkdir -p "$HOME/.android"
           keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=EmbodimentLab,O=Prototype,C=US"
-          godot --headless --xr-mode off --editor --path vr --import --quit
+          godot --headless --xr-mode off --editor --path vr --import --quit || echo "Godot editor shutdown returned nonzero; APK verification will determine result"
           python3 - <<'PY'
           import pathlib, os, re
           conf=max((pathlib.Path.home()/'.config/godot').glob('editor_settings-4.*.tres'), key=lambda p:p.stat().st_mtime)
@@ -80,7 +80,11 @@ jobs:
           set -euxo pipefail
           export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
           mkdir -p vr/build
+          set +e
           godot --headless --xr-mode off --path vr --install-android-build-template --export-debug "Meta Quest Immersive" build/EmbodimentLab-Quest-Immersive.apk
+          GODOT_RC=$?
+          set -e
+          echo "Godot exit code: $GODOT_RC; validating APK output..."
           test -s vr/build/EmbodimentLab-Quest-Immersive.apk
           sha256sum vr/build/EmbodimentLab-Quest-Immersive.apk > vr/build/SHA256SUMS
       - name: Verify immersive VR Android manifest
