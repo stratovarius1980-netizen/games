@@ -50,7 +50,8 @@ jobs:
           ADDON_DIR="$(find /tmp/vendors -type d -name godotopenxrvendors | head -n 1)"
           test -n "$ADDON_DIR"
           cp -a "$ADDON_DIR" vr/addons/
-          test -f vr/addons/godotopenxrvendors/plugin.cfg
+          test -f vr/addons/godotopenxrvendors/plugin.gdextension
+          find vr/addons/godotopenxrvendors -maxdepth 2 -type f | head -n 30
           godot --headless --path vr --install-android-build-template --quit
           test -f vr/android/build/build.gradle || test -f vr/android/build.gradle
       - name: Android editor settings and debug keystore
