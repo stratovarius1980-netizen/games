@@ -114,8 +114,8 @@ func _make_hand() -> void:
 	_oval("Wrist", Vector3(0.31, 0.89, -0.955), Vector3(0.19, 0.085, 0.20), skin, hand)
 	for finger in range(4):
 		var x := 0.196 + finger * 0.073
-		var length := [0.19, 0.26, 0.245, 0.20][finger]
-		var z := -1.395 - length * 0.42
+		var length: float = [0.19, 0.26, 0.245, 0.20][finger]
+		var z: float = -1.395 - length * 0.42
 		_oval("Finger %d" % finger, Vector3(x, 0.89, z), Vector3(0.058, 0.069, length), skin, hand)
 		_oval("Fingernail %d" % finger, Vector3(x, 0.931, z - length * 0.30), Vector3(0.041, 0.008, 0.052), nail, hand)
 	var thumb := _oval("Thumb", Vector3(0.452, 0.892, -1.27), Vector3(0.076, 0.08, 0.19), skin, hand)
