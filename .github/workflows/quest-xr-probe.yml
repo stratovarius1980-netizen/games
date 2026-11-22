@@ -1,0 +1,109 @@
+name: Build clean OpenXR stereo probes (GL + Vulkan)
+on:
+  push:
+    branches: [quest-xr-black-screen-probe]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Locate Android SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -x "$SDKMANAGER"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Install Godot 4.7.2 and Android templates
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 3 'https://downloads.godotengine.org/?version=4.7.2&flavor=stable&platform=linux.64&slug=linux.x86_64.zip' -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          sudo install -m755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+          curl -fL --retry 3 'https://downloads.godotengine.org/?version=4.7.2&flavor=stable&platform=templates&slug=export_templates.tpz' -o /tmp/templates.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          unzip -q -j /tmp/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+      - name: Setup editor and debug signing
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=QuestProbe,O=EmbodimentLab,C=US"
+          godot --headless --xr-mode off --editor --path xr_probe --import --quit
+          python3 - <<'PY'
+          import os, pathlib
+          path=max((pathlib.Path.home()/'.config/godot').glob('editor_settings-4.*.tres'),key=lambda p:p.stat().st_mtime)
+          content=path.read_text()
+          content+='\nexport/android/android_sdk_path = "%s"\n' % os.environ['ANDROID_HOME']
+          content+='export/android/java_sdk_path = "%s"\n' % os.environ['JAVA_HOME']
+          path.write_text(content)
+          PY
+      - name: Smoke test startup script
+        shell: bash
+        run: |
+          godot --headless --xr-mode off --path xr_probe --quit-after 15 >/tmp/probe-smoke.log 2>&1 || true
+          cat /tmp/probe-smoke.log
+          grep -q QUEST_PROBE_BOOT /tmp/probe-smoke.log
+          ! grep -E 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/probe-smoke.log
+      - name: Build GL compatibility XR APK
+        shell: bash
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          set -euxo pipefail
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          mkdir -p xr_probe/build
+          godot --headless --xr-mode off --path xr_probe --export-debug "Quest XR Probe" build/Quest-OpenXR-GL-Probe.apk
+          test -s xr_probe/build/Quest-OpenXR-GL-Probe.apk
+      - name: Build Vulkan Mobile XR APK
+        shell: bash
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          set -euxo pipefail
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          sed -i 's/gl_compatibility/mobile/g; s/GL Compatibility/Mobile/g' xr_probe/project.godot
+          sed -i 's/questprobe.gl/questprobe.mobile/g; s/Quest XR Test GL/Quest XR Test Vulkan/g; s/Quest-OpenXR-GL-Probe.apk/Quest-OpenXR-Vulkan-Probe.apk/g' xr_probe/export_presets.cfg
+          godot --headless --xr-mode off --editor --path xr_probe --import --quit
+          godot --headless --xr-mode off --path xr_probe --export-debug "Quest XR Probe" build/Quest-OpenXR-Vulkan-Probe.apk
+          test -s xr_probe/build/Quest-OpenXR-Vulkan-Probe.apk
+      - name: Verify both APK manifests are immersive
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          for name in ['Quest-OpenXR-GL-Probe.apk','Quest-OpenXR-Vulkan-Probe.apk']:
+              path='xr_probe/build/'+name
+              with zipfile.ZipFile(path) as z:
+                  assert z.testzip() is None
+                  manifest=z.read('AndroidManifest.xml')
+                  categories=['org.khronos.openxr.intent.category.IMMERSIVE_HMD','com.oculus.intent.category.VR']
+                  matches=[s for s in categories if s.encode('utf-16le') in manifest or s.encode() in manifest]
+                  print(name, matches)
+                  assert matches, f'{name}: no immersive headset intent'
+          PY
+          cd xr_probe/build && sha256sum *.apk > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Quest-OpenXR-Clean-Probes
+          path: |
+            xr_probe/build/Quest-OpenXR-GL-Probe.apk
+            xr_probe/build/Quest-OpenXR-Vulkan-Probe.apk
+            xr_probe/build/SHA256SUMS
+          if-no-files-found: error

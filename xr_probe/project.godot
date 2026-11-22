@@ -1,0 +1,25 @@
+; Minimal Quest OpenXR stereo renderer probe - no vendors plugin
+config_version=5
+
+[application]
+config/name="Quest XR Test GL"
+run/main_scene="res://Main.tscn"
+config/description="Visible OpenXR rendering diagnostic for Meta Quest."
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+
+[xr]
+openxr/enabled=true
+openxr/alert_on_startup=true
+openxr/form_factor=0
+openxr/view_configuration=1
+openxr/environment_blend_mode=0
+shaders/enabled=true
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
