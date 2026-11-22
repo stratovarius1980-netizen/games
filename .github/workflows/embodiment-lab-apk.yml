@@ -1,0 +1,76 @@
+name: Build Embodiment Lab VR APK
+
+on:
+  push:
+    branches: [embodiment-lab-openxr-apk]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK components
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Godot and export templates
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 3 'https://downloads.godotengine.org/?version=4.7.2&flavor=stable&platform=linux.64&slug=linux.x86_64.zip' -o /tmp/godot.zip
+          unzip -q /tmp/godot.zip -d /tmp/godot
+          sudo install -m755 /tmp/godot/Godot_v4.7.2-stable_linux.x86_64 /usr/local/bin/godot
+          curl -fL --retry 3 'https://downloads.godotengine.org/?version=4.7.2&flavor=stable&platform=templates&slug=export_templates.tpz' -o /tmp/templates.tpz
+          mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          unzip -q -j /tmp/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.7.2.stable"
+          godot --version
+      - name: Android editor settings and debug keystore
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore" -alias androiddebugkey -storepass android -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=EmbodimentLab,O=Prototype,C=US"
+          godot --headless --editor --path vr --import --quit
+          python3 - <<'PY'
+          import pathlib, os, re
+          conf=max((pathlib.Path.home()/'.config/godot').glob('editor_settings-4.*.tres'), key=lambda p:p.stat().st_mtime)
+          s=conf.read_text()
+          for key,val in [('export/android/android_sdk_path',os.environ['ANDROID_HOME']),('export/android/java_sdk_path',os.environ['JAVA_HOME'])]:
+              val=val.replace('\\','/')
+              line=f'{key} = "{val}"'
+              s=re.sub(rf'(?m)^{re.escape(key)}\\s*=.*$',line,s)
+              if line not in s:s+='\n'+line+'\n'
+          conf.write_text(s)
+          print('SDK config:', conf)
+          PY
+      - name: Export debug-signed OpenXR APK
+        shell: bash
+        env:
+          GODOT_ANDROID_KEYSTORE_DEBUG_USER: androiddebugkey
+          GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD: android
+        run: |
+          set -euxo pipefail
+          export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
+          mkdir -p vr/build
+          godot --headless --path vr --export-debug "Android OpenXR" vr/build/EmbodimentLab-OpenXR.apk
+          test -s vr/build/EmbodimentLab-OpenXR.apk
+          sha256sum vr/build/EmbodimentLab-OpenXR.apk > vr/build/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EmbodimentLab-OpenXR-APK
+          path: |
+            vr/build/EmbodimentLab-OpenXR.apk
+            vr/build/SHA256SUMS
+          retention-days: 30
+          if-no-files-found: error
