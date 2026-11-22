@@ -71,6 +71,19 @@ jobs:
           conf.write_text(s)
           print('SDK config:', conf)
           PY
+      - name: Check game scene startup without headset
+        shell: bash
+        run: |
+          set +e
+          timeout 35s godot --headless --xr-mode off --path vr --quit-after 20 > /tmp/godot-runtime.log 2>&1
+          GODOT_RC=$?
+          set -e
+          cat /tmp/godot-runtime.log
+          echo "Godot test game exit code: $GODOT_RC"
+          if grep -Ei "SCRIPT ERROR|Parse Error|Invalid call|Failed to load script" /tmp/godot-runtime.log; then
+            exit 1
+          fi
+          grep -q 'EMBODIMENT_XR_CHECK: MAIN_SCENE_STARTED' /tmp/godot-runtime.log || { echo "Main scene never reached _ready"; exit 1; }
       - name: Export debug-signed OpenXR APK
         shell: bash
         env:
@@ -81,18 +94,18 @@ jobs:
           export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
           mkdir -p vr/build
           set +e
-          godot --headless --xr-mode off --path vr --install-android-build-template --export-debug "Meta Quest Immersive" build/EmbodimentLab-Quest-Immersive.apk
+          godot --headless --xr-mode off --path vr --install-android-build-template --export-debug "Meta Quest Immersive" build/EmbodimentLab-Quest-Diagnostic.apk
           GODOT_RC=$?
           set -e
           echo "Godot exit code: $GODOT_RC; validating APK output..."
-          test -s vr/build/EmbodimentLab-Quest-Immersive.apk
-          sha256sum vr/build/EmbodimentLab-Quest-Immersive.apk > vr/build/SHA256SUMS
+          test -s vr/build/EmbodimentLab-Quest-Diagnostic.apk
+          sha256sum vr/build/EmbodimentLab-Quest-Diagnostic.apk > vr/build/SHA256SUMS
       - name: Verify immersive VR Android manifest
         shell: bash
         run: |
           python3 - <<'PY'
           import zipfile
-          apk = "vr/build/EmbodimentLab-Quest-Immersive.apk"
+          apk = "vr/build/EmbodimentLab-Quest-Diagnostic.apk"
           with zipfile.ZipFile(apk) as z:
               data = z.read("AndroidManifest.xml")
               labels = ("org.khronos.openxr.intent.category.IMMERSIVE_HMD", "com.oculus.intent.category.VR")
@@ -103,9 +116,9 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: EmbodimentLab-Quest-Immersive-APK
+          name: EmbodimentLab-Quest-Diagnostic-APK
           path: |
-            vr/build/EmbodimentLab-Quest-Immersive.apk
+            vr/build/EmbodimentLab-Quest-Diagnostic.apk
             vr/build/SHA256SUMS
           retention-days: 30
           if-no-files-found: error

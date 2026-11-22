@@ -11,8 +11,13 @@ const RESULTS_FILE := "user://embodiment_lab_results.csv"
 @onready var left_controller: XRController3D = $XROrigin3D/LeftController
 @onready var right_controller: XRController3D = $XROrigin3D/RightController
 @onready var desktop_camera: Camera3D = $DesktopCamera
+@onready var xr_startup_card: MeshInstance3D = $XROrigin3D/XRCamera3D/XRStartupCard
+@onready var xr_startup_text: Label3D = $XROrigin3D/XRCamera3D/XRStartupText
 
 var using_xr := false
+var lab_root: Node3D
+var startup_elapsed := 0.0
+var lab_aligned := false
 var phase := 0 # 0 preparation, 1 stimulation, 2 questionnaire, 3 complete
 var condition := 0
 var rating := 4
@@ -25,6 +30,10 @@ var detail_label: Label3D
 
 
 func _ready() -> void:
+	print("EMBODIMENT_XR_CHECK: MAIN_SCENE_STARTED, platform=", OS.get_name())
+	lab_root = Node3D.new()
+	lab_root.name = "Laboratory"
+	add_child(lab_root)
 	var xr_interface: XRInterface = XRServer.find_interface("OpenXR")
 	if xr_interface != null:
 		# OpenXR may already be initialized before the main scene is loaded.
@@ -34,6 +43,7 @@ func _ready() -> void:
 	if OS.has_feature("android") and not using_xr:
 		push_error("Meta Quest VR REQUIRED: OpenXR runtime could not initialize")
 	get_viewport().use_xr = using_xr
+	print("EMBODIMENT_XR_CHECK: OpenXR initialized=", using_xr, " renderer=", ProjectSettings.get_setting("rendering/renderer/rendering_method"))
 	xr_camera.current = using_xr
 	desktop_camera.current = not using_xr
 	if using_xr:
@@ -92,13 +102,13 @@ func _make_room() -> void:
 	environment.ambient_light_color = Color(0.72, 0.78, 0.86)
 	environment.ambient_light_energy = 0.85
 	world.environment = environment
-	add_child(world)
+	lab_root.add_child(world)
 	var light := DirectionalLight3D.new()
 	light.rotation_degrees = Vector3(-55.0, -25.0, -10.0)
 	light.light_energy = 1.15
 	light.shadow_enabled = true
-	add_child(light)
-	_box("Floor", Vector3(0, -0.04, -1.0), Vector3(8, 0.08, 8), Color(0.24, 0.27, 0.30), self)
+	lab_root.add_child(light)
+	_box("Floor", Vector3(0, -0.04, -1.0), Vector3(8, 0.08, 8), Color(0.24, 0.27, 0.30), lab_root)
 	_box("Back wall", Vector3(0, 1.55, -3.0), Vector3(8, 3.1, 0.08), Color(0.57, 0.64, 0.67), self)
 	_box("Left wall", Vector3(-3.8, 1.55, -1.0), Vector3(0.08, 3.1, 8), Color(0.48, 0.57, 0.61), self)
 	_box("Walnut table", Vector3(0, 0.78, -1.17), Vector3(1.92, 0.075, 1.04), Color(0.33, 0.19, 0.12), self)
@@ -112,7 +122,7 @@ func _make_room() -> void:
 func _make_hand() -> void:
 	var hand := Node3D.new()
 	hand.name = "Virtual rubber right hand"
-	add_child(hand)
+	lab_root.add_child(hand)
 	var skin := Color(0.78, 0.49, 0.39)
 	var nail := Color(0.92, 0.71, 0.67)
 	_oval("Palm", Vector3(0.31, 0.888, -1.17), Vector3(0.26, 0.09, 0.29), skin, hand)
@@ -130,7 +140,7 @@ func _make_hand() -> void:
 func _make_brush() -> void:
 	brush = Node3D.new()
 	brush.name = "Brush stimulus"
-	add_child(brush)
+	lab_root.add_child(brush)
 	var handle := _box("Wooden brush shaft", Vector3(0, 0.105, 0), Vector3(0.024, 0.21, 0.024), Color(0.42, 0.22, 0.10), brush)
 	handle.rotation_degrees.z = 24
 	_oval("Soft bristles", Vector3(-0.044, -0.006, 0), Vector3(0.100, 0.041, 0.085), Color(0.93, 0.86, 0.68), brush)
@@ -145,17 +155,36 @@ func _make_hud() -> void:
 	title_label.font_size = 35
 	title_label.modulate = Color(0.80, 0.93, 1.0)
 	title_label.text = "EMBODIMENT LAB"
-	add_child(title_label)
+	lab_root.add_child(title_label)
 	detail_label = Label3D.new()
 	detail_label.position = Vector3(0, 1.48, -2.13)
 	detail_label.pixel_size = 0.00165
 	detail_label.font_size = 24
 	detail_label.width = 1000
 	detail_label.modulate = Color(0.95, 0.97, 0.98)
-	add_child(detail_label)
+	lab_root.add_child(detail_label)
+
+
+func _align_lab() -> void:
+	var head: Vector3 = xr_camera.global_position
+	var forward: Vector3 = -xr_camera.global_transform.basis.z
+	forward.y = 0.0
+	if head.y < 0.15 or forward.length_squared() < 0.2:
+		return
+	forward = forward.normalized()
+	lab_root.global_position = Vector3(head.x, 0.0, head.z)
+	lab_root.rotation.y = atan2(-forward.x, -forward.z)
+	lab_aligned = true
+	print("EMBODIMENT_XR_CHECK: LAB_POSITIONED_IN_FRONT_OF_HEAD, head=", head, " yaw=", lab_root.rotation.y)
 
 
 func _process(delta: float) -> void:
+	startup_elapsed += delta
+	if using_xr and not lab_aligned and startup_elapsed > 0.2:
+		_align_lab()
+	if startup_elapsed > 12.0:
+		xr_startup_card.visible = false
+		xr_startup_text.visible = false
 	if phase != 1:
 		return
 	elapsed += delta
