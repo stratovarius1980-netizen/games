@@ -25,9 +25,6 @@ openxr/view_configuration=1
 openxr/environment_blend_mode=0
 shaders/enabled=true
 
-[editor_plugins]
-enabled=PackedStringArray("res://addons/godotopenxrvendors/plugin.cfg")
-
 [rendering/textures]
 
 vram_compression/import_etc2_astc=true
