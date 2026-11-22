@@ -40,6 +40,19 @@ jobs:
           mkdir -p "$HOME/.local/share/godot/export_templates/4.7.2.stable"
           unzip -q -j /tmp/templates.tpz -d "$HOME/.local/share/godot/export_templates/4.7.2.stable"
           godot --version
+      - name: Install Quest vendor support and Gradle template
+        shell: bash
+        run: |
+          set -euxo pipefail
+          curl -fL --retry 3 'https://github.com/GodotVR/godot_openxr_vendors/releases/download/5.1.0-stable/godotopenxrvendorsaddon.zip' -o /tmp/vendors.zip
+          mkdir -p /tmp/vendors vr/addons
+          unzip -q /tmp/vendors.zip -d /tmp/vendors
+          ADDON_DIR="$(find /tmp/vendors -type d -name godotopenxrvendors | head -n 1)"
+          test -n "$ADDON_DIR"
+          cp -a "$ADDON_DIR" vr/addons/
+          test -f vr/addons/godotopenxrvendors/plugin.cfg
+          godot --headless --path vr --install-android-build-template --quit
+          test -f vr/android/build/build.gradle || test -f vr/android/build.gradle
       - name: Android editor settings and debug keystore
         shell: bash
         run: |
@@ -68,14 +81,28 @@ jobs:
           set -euxo pipefail
           export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
           mkdir -p vr/build
-          godot --headless --path vr --export-debug "Android OpenXR" build/EmbodimentLab-OpenXR.apk
-          test -s vr/build/EmbodimentLab-OpenXR.apk
-          sha256sum vr/build/EmbodimentLab-OpenXR.apk > vr/build/SHA256SUMS
+          godot --headless --path vr --export-debug "Meta Quest Immersive" build/EmbodimentLab-Quest-Immersive.apk
+          test -s vr/build/EmbodimentLab-Quest-Immersive.apk
+          sha256sum vr/build/EmbodimentLab-Quest-Immersive.apk > vr/build/SHA256SUMS
+      - name: Verify immersive VR Android manifest
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          apk = "vr/build/EmbodimentLab-Quest-Immersive.apk"
+          with zipfile.ZipFile(apk) as z:
+              data = z.read("AndroidManifest.xml")
+              labels = ("org.khronos.openxr.intent.category.IMMERSIVE_HMD", "com.oculus.intent.category.VR")
+              found = [x for x in labels if x.encode("utf-16le") in data or x.encode() in data]
+              print("Immersive VR intent categories:", found)
+              if not found:
+                  raise SystemExit("ERROR: APK lacks immersive VR intent; refusing to publish as Quest VR.")
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: EmbodimentLab-OpenXR-APK
+          name: EmbodimentLab-Quest-Immersive-APK
           path: |
-            vr/build/EmbodimentLab-OpenXR.apk
+            vr/build/EmbodimentLab-Quest-Immersive.apk
             vr/build/SHA256SUMS
           retention-days: 30
           if-no-files-found: error
