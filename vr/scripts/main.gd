@@ -27,7 +27,12 @@ var detail_label: Label3D
 func _ready() -> void:
 	var xr_interface: XRInterface = XRServer.find_interface("OpenXR")
 	if xr_interface != null:
-		using_xr = xr_interface.initialize()
+		# OpenXR may already be initialized before the main scene is loaded.
+		using_xr = xr_interface.is_initialized()
+		if not using_xr:
+			using_xr = xr_interface.initialize()
+	if OS.has_feature("android") and not using_xr:
+		push_error("Meta Quest VR REQUIRED: OpenXR runtime could not initialize")
 	get_viewport().use_xr = using_xr
 	xr_camera.current = using_xr
 	desktop_camera.current = not using_xr
