@@ -5,16 +5,16 @@ extends Node3D
 var frame_counter := 0
 
 func _ready() -> void:
-    print("QUEST_PROBE_BOOT: Godot scene started on ", OS.get_name())
+    print("QUEST_PROBE_BOOT: Godot 4.6.3 on ", OS.get_name(), "; rendering method=", ProjectSettings.get_setting("rendering/renderer/rendering_method"))
     var xr: XRInterface = XRServer.find_interface("OpenXR")
     if xr == null:
         push_error("QUEST_PROBE_FATAL: OpenXR interface missing")
         if OS.has_feature("android"):
             get_tree().quit(2)
         return
-    print("QUEST_PROBE_OPENXR_INITIALIZED=", xr.is_initialized(), " name=", xr.get_name())
+    print("QUEST_PROBE_OPENXR_INITIALIZED=", xr.is_initialized(), " name=", xr.get_name(), "; primary=", XRServer.primary_interface)
     if not xr.is_initialized():
-        push_error("QUEST_PROBE_FATAL: OpenXR never initialized before scene. Check logcat for xrCreateInstance error.")
+        push_error("QUEST_PROBE_FATAL: OpenXR failed at startup. Capture Android logcat to inspect runtime loader.")
         if OS.has_feature("android"):
             get_tree().quit(3)
         return
