@@ -30,24 +30,25 @@ var detail_label: Label3D
 
 
 func _ready() -> void:
-	print("EMBODIMENT_XR_CHECK: MAIN_SCENE_STARTED, platform=", OS.get_name())
+	print("EMBODIMENT_XR_CHECK: MAIN_SCENE_STARTED; platform=", OS.get_name(), " renderer=", ProjectSettings.get_setting("rendering/renderer/rendering_method"))
 	lab_root = Node3D.new()
 	lab_root.name = "Laboratory"
 	add_child(lab_root)
 	var xr_interface: XRInterface = XRServer.find_interface("OpenXR")
 	if xr_interface != null:
-		# OpenXR may already be initialized before the main scene is loaded.
 		using_xr = xr_interface.is_initialized()
-		if not using_xr:
-			using_xr = xr_interface.initialize()
+	print("EMBODIMENT_XR_CHECK: OpenXR initialized=", using_xr, " interface=", xr_interface)
 	if OS.has_feature("android") and not using_xr:
-		push_error("Meta Quest VR REQUIRED: OpenXR runtime could not initialize")
+		push_error("EMBODIMENT_XR_FATAL: Quest OpenXR did not initialize. Capture Android logcat.")
+		get_tree().quit(3)
+		return
 	get_viewport().use_xr = using_xr
-	print("EMBODIMENT_XR_CHECK: OpenXR initialized=", using_xr, " renderer=", ProjectSettings.get_setting("rendering/renderer/rendering_method"))
 	xr_camera.current = using_xr
 	desktop_camera.current = not using_xr
 	if using_xr:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
+		if RenderingServer.get_rendering_device() != null:
+			get_viewport().vrs_mode = Viewport.VRS_XR
 	_make_room()
 	_make_hand()
 	_make_brush()
@@ -56,6 +57,7 @@ func _ready() -> void:
 	right_controller.button_pressed.connect(_on_right_button)
 	left_controller.button_pressed.connect(_on_left_button)
 	_update_hud()
+	print("EMBODIMENT_XR_CHECK: LAB_SCENE_BUILT")
 
 
 func _mat(c: Color, roughness: float = 0.7) -> StandardMaterial3D:
@@ -109,14 +111,14 @@ func _make_room() -> void:
 	light.shadow_enabled = true
 	lab_root.add_child(light)
 	_box("Floor", Vector3(0, -0.04, -1.0), Vector3(8, 0.08, 8), Color(0.24, 0.27, 0.30), lab_root)
-	_box("Back wall", Vector3(0, 1.55, -3.0), Vector3(8, 3.1, 0.08), Color(0.57, 0.64, 0.67), self)
-	_box("Left wall", Vector3(-3.8, 1.55, -1.0), Vector3(0.08, 3.1, 8), Color(0.48, 0.57, 0.61), self)
-	_box("Walnut table", Vector3(0, 0.78, -1.17), Vector3(1.92, 0.075, 1.04), Color(0.33, 0.19, 0.12), self)
-	_box("Table leg L", Vector3(-0.81, 0.36, -1.50), Vector3(0.08, 0.72, 0.08), Color(0.16, 0.16, 0.17), self)
-	_box("Table leg R", Vector3(0.81, 0.36, -1.50), Vector3(0.08, 0.72, 0.08), Color(0.16, 0.16, 0.17), self)
-	_box("Silicone examination mat", Vector3(0.29, 0.830, -1.18), Vector3(0.68, 0.012, 0.69), Color(0.15, 0.24, 0.26), self)
-	_box("Real hand occlusion", Vector3(-0.35, 1.02, -1.18), Vector3(0.53, 0.36, 0.69), Color(0.08, 0.12, 0.16), self)
-	_box("Occlusion lid", Vector3(-0.35, 1.21, -1.18), Vector3(0.55, 0.024, 0.71), Color(0.14, 0.18, 0.22), self)
+	_box("Back wall", Vector3(0, 1.55, -3.0), Vector3(8, 3.1, 0.08), Color(0.57, 0.64, 0.67), lab_root)
+	_box("Left wall", Vector3(-3.8, 1.55, -1.0), Vector3(0.08, 3.1, 8), Color(0.48, 0.57, 0.61), lab_root)
+	_box("Walnut table", Vector3(0, 0.78, -1.17), Vector3(1.92, 0.075, 1.04), Color(0.33, 0.19, 0.12), lab_root)
+	_box("Table leg L", Vector3(-0.81, 0.36, -1.50), Vector3(0.08, 0.72, 0.08), Color(0.16, 0.16, 0.17), lab_root)
+	_box("Table leg R", Vector3(0.81, 0.36, -1.50), Vector3(0.08, 0.72, 0.08), Color(0.16, 0.16, 0.17), lab_root)
+	_box("Silicone examination mat", Vector3(0.29, 0.830, -1.18), Vector3(0.68, 0.012, 0.69), Color(0.15, 0.24, 0.26), lab_root)
+	_box("Real hand occlusion", Vector3(-0.35, 1.02, -1.18), Vector3(0.53, 0.36, 0.69), Color(0.08, 0.12, 0.16), lab_root)
+	_box("Occlusion lid", Vector3(-0.35, 1.21, -1.18), Vector3(0.55, 0.024, 0.71), Color(0.14, 0.18, 0.22), lab_root)
 
 
 func _make_hand() -> void:
@@ -148,7 +150,7 @@ func _make_brush() -> void:
 
 
 func _make_hud() -> void:
-	_box("HUD board", Vector3(0.0, 1.57, -2.17), Vector3(1.94, 0.67, 0.04), Color(0.045, 0.075, 0.10), self)
+	_box("HUD board", Vector3(0.0, 1.57, -2.17), Vector3(1.94, 0.67, 0.04), Color(0.045, 0.075, 0.10), lab_root)
 	title_label = Label3D.new()
 	title_label.position = Vector3(0, 1.76, -2.13)
 	title_label.pixel_size = 0.00145
@@ -172,15 +174,15 @@ func _align_lab() -> void:
 	if head.y < 0.15 or forward.length_squared() < 0.2:
 		return
 	forward = forward.normalized()
-	lab_root.global_position = Vector3(head.x, 0.0, head.z)
+	lab_root.global_position = Vector3(head.x, head.y - 1.50, head.z)
 	lab_root.rotation.y = atan2(-forward.x, -forward.z)
 	lab_aligned = true
-	print("EMBODIMENT_XR_CHECK: LAB_POSITIONED_IN_FRONT_OF_HEAD, head=", head, " yaw=", lab_root.rotation.y)
+	print("EMBODIMENT_XR_CHECK: LAB_POSITIONED_IN_FRONT_OF_HEAD, head=", head, " origin=", lab_root.global_position, " yaw=", lab_root.rotation.y)
 
 
 func _process(delta: float) -> void:
 	startup_elapsed += delta
-	if using_xr and not lab_aligned and startup_elapsed > 0.2:
+	if using_xr and not lab_aligned and startup_elapsed > 0.3:
 		_align_lab()
 	if startup_elapsed > 12.0:
 		xr_startup_card.visible = false

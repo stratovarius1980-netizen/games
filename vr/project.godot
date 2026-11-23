@@ -1,30 +1,29 @@
-; Embodiment Lab VR / Rubber Hand Illusion - Android OpenXR
+; Embodiment Lab VR — Meta Quest 2 (Godot 4.6.3 proven OpenXR baseline)
 config_version=5
 
 [application]
-config/name="Embodiment Lab Quest VR"
+config/name="Embodiment Lab Quest 2"
 run/main_scene="res://scenes/Main.tscn"
-config/description="Эксперимент эффекта резиновой руки в VR"
-config/features=PackedStringArray("4.7", "GL Compatibility")
+config/description="Rubber hand illusion VR demonstration for Quest 2"
+config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [rendering]
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-textures/default_filters/use_nearest_mipmap_filter=false
+textures/vram_compression/import_etc2_astc=true
 
-[display]
-window/size/viewport_width=1440
-window/size/viewport_height=900
-window/handheld/orientation=1
+[debug]
+settings/stdout/verbose_stdout=true
 
 [xr]
 openxr/enabled=true
-openxr/alert_on_startup=true
+openxr/startup_alert=true
 openxr/form_factor=0
 openxr/view_configuration=1
 openxr/environment_blend_mode=0
 shaders/enabled=true
+openxr/extensions/hand_tracking=false
 
-[rendering/textures]
-
-vram_compression/import_etc2_astc=true
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720

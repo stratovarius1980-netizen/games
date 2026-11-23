@@ -15,7 +15,7 @@ script = ExtResource("1_main")
 [node name="XROrigin3D" type="XROrigin3D" parent="."]
 
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
-current = false
+current = true
 
 [node name="XRStartupCard" type="MeshInstance3D" parent="XROrigin3D/XRCamera3D"]
 position = Vector3(0.0, 0.25, -1.0)
