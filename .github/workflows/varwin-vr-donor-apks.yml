@@ -70,6 +70,35 @@ jobs:
           cat /tmp/probe-smoke.log
           grep -q QUEST_PROBE_BOOT /tmp/probe-smoke.log
           ! grep -E 'SCRIPT ERROR|Parse Error|Failed to load script' /tmp/probe-smoke.log
+      - name: Configure Gradle Maven mirrors
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.gradle"
+          cat > "$HOME/.gradle/init.gradle" <<'GRADLE'
+          gradle.beforeSettings { settings ->
+              settings.pluginManagement.repositories {
+                  maven { url "https://maven-central.storage-download.googleapis.com/maven2/" }
+                  maven { url "https://maven.aliyun.com/repository/gradle-plugin" }
+                  maven { url "https://maven.aliyun.com/repository/google" }
+                  gradlePluginPortal()
+              }
+          }
+          allprojects {
+              buildscript.repositories {
+                  maven { url "https://maven-central.storage-download.googleapis.com/maven2/" }
+                  maven { url "https://maven.aliyun.com/repository/public" }
+                  maven { url "https://maven.aliyun.com/repository/google" }
+                  mavenCentral()
+              }
+              repositories {
+                  maven { url "https://maven-central.storage-download.googleapis.com/maven2/" }
+                  maven { url "https://maven.aliyun.com/repository/public" }
+                  maven { url "https://maven.aliyun.com/repository/google" }
+                  mavenCentral()
+                  google()
+              }
+          }
+          GRADLE
       - name: Build GL compatibility XR APK
         shell: bash
         env:
@@ -80,7 +109,7 @@ jobs:
           export GODOT_ANDROID_KEYSTORE_DEBUG_PATH="$HOME/.android/debug.keystore"
           mkdir -p xr_probe/build
           godot --headless --xr-mode off --path xr_probe --install-android-build-template --export-debug "Varwin Quest 2" build/Varwin-Quest2-Base.apk || echo "CLI finished nonzero; checking APK"
-          test -s xr_probe/build/Quest2-Godot463-VR-Test.apk
+          test -s xr_probe/build/Varwin-Quest2-Base.apk
       - name: Build PICO 4 OpenXR vendor APK
         shell: bash
         env:
@@ -96,7 +125,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import zipfile
-          for name in ['Quest2-Godot463-VR-Test.apk']:
+          for name in ['Varwin-Quest2-Base.apk','Varwin-PICO4-Base.apk']:
               path='xr_probe/build/'+name
               with zipfile.ZipFile(path) as z:
                   assert z.testzip() is None
@@ -111,6 +140,7 @@ jobs:
         with:
           name: Varwin-Quest2-PICO4-VR-Donor
           path: |
-            xr_probe/build/Quest2-Godot463-VR-Test.apk
+            xr_probe/build/Varwin-Quest2-Base.apk
+            xr_probe/build/Varwin-PICO4-Base.apk
             xr_probe/build/SHA256SUMS
           if-no-files-found: error
